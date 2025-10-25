@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Package manager files
+# Uncomment based on your package manager:
+# Pipenv
+#Pipfile.lock
+# Poetry
+#poetry.lock
+# PDM
+#pdm.lock
+.pdm.toml
+__pypackages__/
+
+# Testing and coverage
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+cover/
+htmlcov/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+app.db
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS (Linux specific - mostly clean but adding common ones)
+*.swp
+*.swo
+*~
+
+# FastAPI specific
+local_settings.py
+local_config.py
+config/local.py
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Documentation
+docs/_build/
+
+# Temporary files
+*.tmp
+*.temp
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# Pytype
+.pytype/
