@@ -58,10 +58,10 @@ A robust monitoring service that tracks the availability of the Opfinger Hütte 
 4. **Check the application**
    ```bash
    # Check if the service is running
-   curl http://localhost:8000/health
+   curl http://localhost:8005/health
    
    # View API documentation
-   open http://localhost:8000/docs
+   open http://localhost:8005/docs
    ```
 
 ## Configuration
@@ -117,7 +117,7 @@ CHECK_INTERVAL_MINUTES=30
 
 4. **Run the application**
    ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8005
    ```
 
 ### Project Structure
@@ -228,8 +228,8 @@ docker-compose logs app | grep WARNING
 ## API Documentation
 
 Once the application is running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://localhost:8005/docs
+- **ReDoc**: http://localhost:8005/redoc
 
 ## Contributing
 

@@ -6,7 +6,7 @@ Test script to verify the improved scraper is working correctly.
 import requests
 from datetime import date, datetime
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8005"
 
 def test_scraper_functionality():
     """Test the improved scraper functionality."""

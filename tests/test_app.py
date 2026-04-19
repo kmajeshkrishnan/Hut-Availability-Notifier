@@ -6,7 +6,7 @@ Run this after starting the application to verify everything works.
 
 import requests
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8005"
 
 def test_endpoint(endpoint, expected_status=200):
     """Test an endpoint and return the response."""
