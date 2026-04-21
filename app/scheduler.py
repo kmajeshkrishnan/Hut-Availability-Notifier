@@ -4,6 +4,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 from datetime import datetime
+from sqlalchemy.orm import Session
 from .scraper import fetch_calendar_data
 from .database import get_db_session, test_database_connection
 from . import crud
@@ -21,6 +22,28 @@ def job_listener(event):
     else:
         logger.info(f"Scheduled job completed successfully")
 
+def run_availability_check_cycle(db: Session) -> tuple[int, int]:
+    """Run one scrape/update cycle and return success/error counts."""
+    crud.sync_huts_from_config(db)
+    success_count = 0
+    error_count = 0
+
+    for hut_slug, hut_config in settings.tracked_huts.items():
+        data = fetch_calendar_data(hut_config["base_url"])
+        if not data:
+            logger.warning(f"No calendar data retrieved for {hut_slug} - skipping")
+            continue
+
+        for day, day_status in data.items():
+            logger.debug(f"[CHECK] {hut_slug} data {day} ({day.strftime('%A')}): {day_status}")
+            if crud.update_or_create_availability(db, hut_slug, day, day_status):
+                success_count += 1
+            else:
+                error_count += 1
+
+    return success_count, error_count
+
+
 def availability_check_job():
     """Main job function with comprehensive error handling."""
     start_time = datetime.utcnow()
@@ -34,22 +57,7 @@ def availability_check_job():
             
         # Process data with database session
         with get_db_session() as db:
-            success_count = 0
-            error_count = 0
-
-            for hut_id, hut_config in settings.tracked_huts.items():
-                # Fetch calendar data for each hut independently.
-                data = fetch_calendar_data(hut_config["base_url"])
-                if not data:
-                    logger.warning(f"No calendar data retrieved for {hut_id} - skipping")
-                    continue
-
-                for day, status in data.items():
-                    logger.debug(f"[SCHEDULER] {hut_id} data {day} ({day.strftime('%A')}): {status}")
-                    if crud.update_or_create_availability(db, hut_id, day, status):
-                        success_count += 1
-                    else:
-                        error_count += 1
+            success_count, error_count = run_availability_check_cycle(db)
                     
             logger.info(f"Processed {success_count} availability records successfully, {error_count} errors")
             

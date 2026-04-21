@@ -3,10 +3,10 @@ from fastapi import FastAPI, Depends, Query, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from typing import Optional, List
-from datetime import date, datetime
+from typing import Optional
+from datetime import datetime
 from .database import Base, engine, get_db_session, test_database_connection
-from .scheduler import start_scheduler, stop_scheduler, get_scheduler_status
+from .scheduler import start_scheduler, stop_scheduler, get_scheduler_status, run_availability_check_cycle
 from . import models, crud
 from .config import settings, setup_logging
 
@@ -40,6 +40,9 @@ async def startup_event():
         if not test_database_connection():
             logger.error("Database connection failed during startup")
             raise Exception("Database connection failed")
+
+        with get_db_session() as db:
+            crud.sync_huts_from_config(db)
             
         # Start scheduler
         start_scheduler()
@@ -139,21 +142,27 @@ def get_availability(
                 detail=f"hut_id must be one of: {', '.join(settings.tracked_huts.keys())}"
             )
 
+        # Always trigger a fresh check before returning data.
+        run_availability_check_cycle(db)
+
         hut_ids = [hut_id] if hut_id else list(settings.tracked_huts.keys())
         all_data = []
 
-        for current_hut_id in hut_ids:
-            availability_model = crud.get_availability_model(current_hut_id)
-            query = db.query(availability_model)
-            if status_filter:
-                query = query.filter(availability_model.status == status_filter.lower())
+        for current_hut_slug in hut_ids:
+            hut = crud.get_hut_by_slug(db, current_hut_slug)
+            if not hut:
+                continue
 
-            hut_data = query.order_by(availability_model.date.asc()).limit(limit).all()
+            query = db.query(models.Availability).filter(models.Availability.hut_id == hut.id)
+            if status_filter:
+                query = query.filter(models.Availability.status == status_filter.lower())
+
+            hut_data = query.order_by(models.Availability.date.asc()).limit(limit).all()
             all_data.extend(
                 [
                     {
-                        "hut_id": current_hut_id,
-                        "hut_name": settings.tracked_huts[current_hut_id]["name"],
+                        "hut_id": current_hut_slug,
+                        "hut_name": hut.name,
                         "date": a.date.isoformat(),
                         "status": a.status,
                         "last_checked": a.last_checked.isoformat() if a.last_checked else None,
