@@ -179,14 +179,15 @@ html_template = """
 """
 
 # Function to send the hut availability email
-def send_hut_availability_email(day: date):
+def send_hut_availability_email(day: date, hut_id: str):
 
     to_email = "ajeshkrishnankm@gmail.com"
+    hut_config = settings.tracked_huts.get(hut_id, settings.tracked_huts["opfinger"])
     hut_details = {
-    'name': 'Opfinger Hut',
-    'location': 'Near Opfinger See, Freiburg im Breisgau',
-    'date_range': day.strftime('%A, %b %d, %Y'),
-    'booking_url': 'https://www.forsthuetten-freiburg.de/de/buchen/index.php?id=3',
+        "name": hut_config["name"],
+        "location": hut_config["location"],
+        "date_range": day.strftime("%A, %b %d, %Y"),
+        "booking_url": hut_config["base_url"],
     }
 
     # Replace placeholders with actual data

@@ -45,14 +45,14 @@ def create_session() -> requests.Session:
     
     return session
 
-def fetch_calendar_data() -> Dict[date, str]:
+def fetch_calendar_data(base_url: str) -> Dict[date, str]:
     """
-    Scrape Opfinger Hütte calendar and return a dict of
+    Scrape hut calendar and return a dict of
     {date: status} for weekend slots (Friday-Saturday and Saturday-Sunday).
     Fetches multiple months to get comprehensive data.
     """
     try:
-        results = {}
+        raw_results = {}
         today = date.today()
         
         # Fetch current month and next N months based on configuration
@@ -64,7 +64,7 @@ def fetch_calendar_data() -> Dict[date, str]:
             logger.debug(f"Fetching calendar for {month}/{year}")
             
             # Build URL with month and year parameters
-            url = f"{settings.base_url}&monat={month}&jahr={year}&eintrag=Kalender+anzeigen"
+            url = f"{base_url}&monat={month}&jahr={year}&eintrag=Kalender+anzeigen"
             
             html = _fetch_html_with_retries(url)
             if not html:
@@ -72,32 +72,16 @@ def fetch_calendar_data() -> Dict[date, str]:
                 continue
                 
             month_results = _parse_calendar_html(html, month, year)
-            results.update(month_results)
+            raw_results.update(month_results)
             
             # Small delay between requests to be respectful
             if month_offset < 2:  # Don't delay after the last request
                 time.sleep(1)
             
-        logger.info(f"Found {len(results)} weekend entries across all months.")
+        logger.info(f"Found {len(raw_results)} day entries across all months.")
 
-        # Normalize the results to only free and booked to our use-case
-        # Free only if place is free from mid day till next mid-day on friday and saturday
-        dates = list(results.keys())
-        for i in range(len(dates) - 1):
-            current_date = dates[i]
-            next_date = dates[i + 1]
-            
-            if next_date - current_date == timedelta(days=1) and \
-                (results[current_date] in ['partial_rg', 'free']) and \
-                (results[next_date] in ['free', 'partial_gr']):
-                results[current_date] = 'free'
-            else:
-                results[current_date] = 'booked'
-
-        if results[next_date] != 'free':
-            results[next_date] = 'booked' 
-
-        return results
+        # Convert raw day-level colors into bookable weekend slots.
+        return _compute_weekend_slot_availability(raw_results)
         
     except Exception as e:
         logger.error(f"Unexpected error in fetch_calendar_data: {e}")
@@ -167,7 +151,7 @@ def _parse_month_year(month_year_text: str) -> tuple[str, int]:
         return None, None
 
 def _process_calendar_table(table, month_label: str, year_label: int) -> Dict[date, str]:
-    """Process a single calendar table and extract weekend availability."""
+    """Process a single calendar table and extract day-level availability markers."""
     results = {}
     today = date.today()
     
@@ -205,11 +189,9 @@ def _process_calendar_table(table, month_label: str, year_label: int) -> Dict[da
                     logger.warning(f"Invalid date: {year_label}-{MONTHS[month_label]}-{day_num}")
                     continue
 
-                if full_date > today: 
-                    # Check if this is a Friday or Saturday (weekend slots)
-                    if full_date.weekday() in (4, 5):  # Friday=4, Saturday=5
-                        results[full_date] = status
-                        logger.debug(f"Found {full_date} ({full_date.strftime('%A')}): {status}")
+                if full_date > today:
+                    results[full_date] = status
+                    logger.debug(f"Found {full_date} ({full_date.strftime('%A')}): {status}")
                         
             except Exception as e:
                 logger.warning(f"Error processing calendar cell: {e}")
@@ -219,6 +201,37 @@ def _process_calendar_table(table, month_label: str, year_label: int) -> Dict[da
         logger.warning(f"Error processing calendar table: {e}")
         
     return results
+
+
+def _compute_weekend_slot_availability(raw_results: Dict[date, str]) -> Dict[date, str]:
+    """
+    Compute weekend slot availability from day-level statuses.
+
+    Friday is available if:
+    - Friday is free or partial_rg
+    - Saturday is free or partial_gr
+
+    Saturday is available if:
+    - Saturday is free or partial_rg
+    - Sunday is free or partial_gr
+    """
+    weekend_results: Dict[date, str] = {}
+
+    for current_date in sorted(raw_results.keys()):
+        weekday = current_date.weekday()
+        if weekday not in (4, 5):  # Friday=4, Saturday=5
+            continue
+
+        next_date = current_date + timedelta(days=1)
+        current_status = raw_results.get(current_date)
+        next_status = raw_results.get(next_date)
+
+        is_current_open = current_status in ["free", "partial_rg"]
+        is_next_open = next_status in ["free", "partial_gr"]
+
+        weekend_results[current_date] = "free" if (is_current_open and is_next_open) else "booked"
+
+    return weekend_results
 
 def _determine_status_from_cell(cell) -> Optional[str]:
     """Determine availability status from a calendar cell.

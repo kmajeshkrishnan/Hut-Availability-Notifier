@@ -119,33 +119,51 @@ def get_stats(db: Session = Depends(get_db)):
 
 @app.get("/availability", tags=["Data"])
 def get_availability(
-    status: Optional[str] = Query(None, description="Filter by status: free/booked"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by status: free/booked"),
+    hut_id: Optional[str] = Query(None, description="Filter by hut id (opfinger or st_georgs)"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
     db: Session = Depends(get_db)
 ):
     """Get availability data with optional filtering."""
     try:
         # Validate status parameter
-        if status and status.lower() not in ['free', 'booked']:
+        if status_filter and status_filter.lower() not in ['free', 'booked']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Status must be one of: free, booked"
             )
-            
-        query = db.query(models.Availability)
-        if status:
-            query = query.filter(models.Availability.status == status.lower())
-            
-        data = query.order_by(models.Availability.date.asc()).limit(limit).all()
-        
-        return [
-            {
-                "date": a.date.isoformat(),
-                "status": a.status,
-                "last_checked": a.last_checked.isoformat() if a.last_checked else None
-            }
-            for a in data
-        ]
+
+        if hut_id and hut_id not in settings.tracked_huts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"hut_id must be one of: {', '.join(settings.tracked_huts.keys())}"
+            )
+
+        hut_ids = [hut_id] if hut_id else list(settings.tracked_huts.keys())
+        all_data = []
+
+        for current_hut_id in hut_ids:
+            availability_model = crud.get_availability_model(current_hut_id)
+            query = db.query(availability_model)
+            if status_filter:
+                query = query.filter(availability_model.status == status_filter.lower())
+
+            hut_data = query.order_by(availability_model.date.asc()).limit(limit).all()
+            all_data.extend(
+                [
+                    {
+                        "hut_id": current_hut_id,
+                        "hut_name": settings.tracked_huts[current_hut_id]["name"],
+                        "date": a.date.isoformat(),
+                        "status": a.status,
+                        "last_checked": a.last_checked.isoformat() if a.last_checked else None,
+                    }
+                    for a in hut_data
+                ]
+            )
+
+        all_data.sort(key=lambda record: (record["date"], record["hut_id"]))
+        return all_data[:limit]
         
     except HTTPException:
         raise

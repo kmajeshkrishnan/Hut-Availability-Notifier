@@ -4,6 +4,19 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings
 import logging
 
+HUT_TRACKING_CONFIG = {
+    "opfinger": {
+        "name": "Opfinger Hut",
+        "location": "Near Opfinger See, Freiburg im Breisgau",
+        "base_url": "https://www.forsthuetten-freiburg.de/de/buchen/index.php?id=3",
+    },
+    "st_georgs": {
+        "name": "St.-Georgs-Hutte",
+        "location": "Freiburg im Breisgau",
+        "base_url": "https://www.forsthuetten-freiburg.de/de/buchen/index.php?id=6",
+    },
+}
+
 class Settings(BaseSettings):
     """Application configuration with validation."""
     
@@ -15,7 +28,7 @@ class Settings(BaseSettings):
     db_port: int = 5432
     
     # Scraper settings
-    base_url: str = "https://www.forsthuetten-freiburg.de/de/buchen/index.php?id=3"
+    base_url: str = HUT_TRACKING_CONFIG["opfinger"]["base_url"]
     check_interval_minutes: int = 30
     months_ahead: int = 3
     max_retries: int = 3
@@ -79,6 +92,11 @@ class Settings(BaseSettings):
         """Calculate max availability age based on months_ahead setting."""
         # Add some buffer (30 days) to ensure we don't clean up data we're still monitoring
         return (self.months_ahead * 30) + 30
+
+    @property
+    def tracked_huts(self) -> dict:
+        """Get all huts that should be tracked by the scraper."""
+        return HUT_TRACKING_CONFIG
     
     class Config:
         env_file = ".env"
